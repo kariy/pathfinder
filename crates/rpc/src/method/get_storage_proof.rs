@@ -3,12 +3,7 @@ use std::collections::HashSet;
 use anyhow::Context;
 use pathfinder_common::trie::TrieNode;
 use pathfinder_common::{
-    BlockHash,
-    BlockId,
-    BlockNumber,
-    ClassHash,
-    ContractAddress,
-    ContractNonce,
+    BlockHash, BlockId, BlockNumber, ClassHash, ContractAddress, ContractNonce, ContractRoot,
     StorageAddress,
 };
 use pathfinder_crypto::Felt;
@@ -171,6 +166,7 @@ impl SerializeForVersion for &NodeHashToNodeMappings {
 
 #[derive(Debug, PartialEq)]
 struct ContractLeafData {
+    storage_root: ContractRoot,
     nonce: ContractNonce,
     class_hash: ClassHash,
 }
@@ -440,7 +436,16 @@ fn get_contract_proofs(
                 .context("Querying contract's nonce")?
                 .unwrap_or_default();
 
-            Ok(ContractLeafData { nonce, class_hash })
+            let storage_root = tx
+                .contract_root(block_number, address)
+                .context("Querying contract's storage root")?
+                .unwrap_or_default();
+
+            Ok(ContractLeafData {
+                storage_root,
+                nonce,
+                class_hash,
+            })
         })
         .collect::<Result<Vec<_>, Error>>()?;
     Ok((
@@ -669,6 +674,7 @@ mod tests {
                         }),
                     }]),
                     contract_leaves_data: vec![ContractLeafData {
+	                    storage_root: ContractRoot::ZERO,
                         nonce: ContractNonce::ZERO,
                         class_hash: ClassHash(Felt::from_hex_str("0x123").unwrap()),
                     }],
